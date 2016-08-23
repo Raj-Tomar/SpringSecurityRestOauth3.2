@@ -1,0 +1,145 @@
+<beans xmlns="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:oauth="http://www.springframework.org/schema/security/oauth2" 
+	xmlns:sec="http://www.springframework.org/schema/security"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+	http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+	http://www.springframework.org/schema/security
+	http://www.springframework.org/schema/security/spring-security-3.2.xsd
+	http://www.springframework.org/schema/security/oauth2 
+	http://www.springframework.org/schema/security/spring-security-oauth2-1.0.xsd
+	http://www.springframework.org/schema/context 
+	http://www.springframework.org/schema/context/spring-context-3.2.xsd">
+ 	
+	<http pattern="/oauth/token" create-session="stateless" authentication-manager-ref="clientAuthenticationManager"
+		xmlns="http://www.springframework.org/schema/security">
+		<intercept-url pattern="/oauth/token" access="IS_AUTHENTICATED_FULLY" />
+		<anonymous enabled="false" />
+		<http-basic entry-point-ref="clientAuthenticationEntryPoint" />
+		<!-- include this only if you need to authenticate clients via request parameters -->
+		<custom-filter ref="clientCredentialsTokenEndpointFilter" after="BASIC_AUTH_FILTER" />
+		<access-denied-handler ref="oauthAccessDeniedHandler" />
+	</http>
+
+ 	<bean id="oauthAuthenticationEntryPoint" class="org.springframework.security.oauth2.provider.error.OAuth2AuthenticationEntryPoint">
+		<property name="realmName" value="test" />
+	</bean>
+
+	<bean id="clientAuthenticationEntryPoint" class="org.springframework.security.oauth2.provider.error.OAuth2AuthenticationEntryPoint">
+		<property name="realmName" value="test/client" />
+		<property name="typeName" value="Basic" />
+	</bean>
+	
+ 	
+	<bean id="oauthAccessDeniedHandler" class="org.springframework.security.oauth2.provider.error.OAuth2AccessDeniedHandler" />
+
+	<bean id="clientCredentialsTokenEndpointFilter" class="org.springframework.security.oauth2.provider.client.ClientCredentialsTokenEndpointFilter">
+		<property name="authenticationManager" ref="clientAuthenticationManager" />
+	</bean>
+
+	<bean id="accessDecisionManager" class="org.springframework.security.access.vote.UnanimousBased" xmlns="http://www.springframework.org/schema/beans">
+		<constructor-arg>
+			<list>
+				<bean class="org.springframework.security.oauth2.provider.vote.ScopeVoter" />
+				<bean class="org.springframework.security.access.vote.RoleVoter" />
+				<bean class="org.springframework.security.access.vote.AuthenticatedVoter" />
+			</list>
+		</constructor-arg>
+	</bean>
+
+	<authentication-manager id="clientAuthenticationManager" xmlns="http://www.springframework.org/schema/security">
+		<authentication-provider user-service-ref="clientDetailsUserService" />
+	</authentication-manager>
+
+	<authentication-manager alias="authenticationManager" xmlns="http://www.springframework.org/schema/security">
+		<!-- <authentication-provider>
+			<user-service id="userDetailsService">
+				<user name="user" password="password" authorities="ROLE_USER" />
+			</user-service>
+		</authentication-provider> -->
+		<authentication-provider user-service-ref="userDetailService">
+			<!--
+			Default password encoder is PlaintextPasswordEncoder, which fits with our hardcoded users.
+			Obviously not a good choice otherwise.
+			-->
+		</authentication-provider>
+	</authentication-manager>
+	
+	<bean id="userDetailService" class="com.raj.security.MyUserDetailsService"/>
+
+	<bean id="clientDetailsUserService" class="org.springframework.security.oauth2.provider.client.ClientDetailsUserDetailsService">
+		<constructor-arg ref="clientDetails" />
+	</bean>
+	
+	<!-- Used for the persistenceof tokens (currently an in memory implementation) -->
+	<!-- <bean id="tokenStore" class="org.springframework.security.oauth2.provider.token.InMemoryTokenStore" /> -->
+
+	<bean id="tokenStore" class="org.springframework.security.oauth2.provider.token.JdbcTokenStore">
+        <constructor-arg ref="dataSource" />
+	</bean>
+	<context:property-placeholder location="classpath:hibernate.properties" />
+	<bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+		<property name="driverClassName" value="${jdbc.connection.driver_class}"></property>
+		<property name="url" value="${jdbc.connection.url}"></property>
+		<property name="username" value="${jdbc.connection.username}"></property>
+		<property name="password" value="${jdbc.connection.password}"></property>
+	</bean>
+	
+	<bean id="sessionFactory" class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+    <property name="dataSource" ref="dataSource" />
+		<property name="annotatedClasses">
+	  		<list>
+	  			<value>com.raj.models.ClientDetails</value>
+	  		</list>
+	  	</property>
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">${hibernate.dialect}</prop>
+				<prop key="hibernate.show_sql">${hibernate.show_sql}</prop>
+				<prop key="hibernate.hbm2ddl.auto">${hibernate.hbm2dll.auto} </prop>
+			</props>
+		</property>
+	</bean>
+	
+	<!-- Used to create token and and every thing about them except for their persistence that is reposibility of TokenStore (Given here is a 			default implementation) -->
+	<bean id="tokenServices" class="org.springframework.security.oauth2.provider.token.DefaultTokenServices">
+		<property name="tokenStore" ref="tokenStore" />
+		<property name="supportRefreshToken" value="true" />
+		<property name="clientDetailsService" ref="clientDetails" />
+	</bean>
+
+	<bean id="userApprovalHandler" class="org.springframework.security.oauth2.provider.approval.TokenServicesUserApprovalHandler">
+		<property name="tokenServices" ref="tokenServices" />
+	</bean>
+
+	<!-- authorization-server aka AuthorizationServerTokenServices is an interface that defines everything necessary for token management -->
+	<oauth:authorization-server client-details-service-ref="clientDetails" token-services-ref="tokenServices"
+		user-approval-handler-ref="userApprovalHandler">
+		<oauth:authorization-code />
+		<oauth:implicit />
+		<oauth:refresh-token />
+		<oauth:client-credentials />
+		<oauth:password />
+	</oauth:authorization-server>
+
+	<oauth:resource-server id="resourceServerFilter" resource-id="test" token-services-ref="tokenServices" />
+	
+	<!-- ClientsDeailsService: Entry Point to clients database (given is in memory implementation) -->
+	<oauth:client-details-service id="clientDetails">
+			<!-- clients -->
+			<oauth:client client-id="CS" authorized-grant-types="password,authorization_code,refresh_token,implicit"
+            authorities="ROLE_ADMIN" scope="read,write,trust" secret="secret" />
+
+			<oauth:client client-id="API" authorized-grant-types="password,authorization_code,refresh_token,implicit"
+			secret="somesecret" scope="read,write,trust" authorities="ROLE_USER" />
+	</oauth:client-details-service>
+
+	<sec:global-method-security pre-post-annotations="enabled" proxy-target-class="true">
+		<!--you could also wire in the expression handler up at the layer of the http filters. See https://jira.springsource.org/browse/SEC-1452 -->
+		<sec:expression-handler ref="oauthExpressionHandler" />
+	</sec:global-method-security>
+
+	<oauth:expression-handler id="oauthExpressionHandler" />
+	<oauth:web-expression-handler id="oauthWebExpressionHandler" />
+</beans>
