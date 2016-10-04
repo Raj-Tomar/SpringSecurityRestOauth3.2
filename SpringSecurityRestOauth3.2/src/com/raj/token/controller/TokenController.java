@@ -3,7 +3,6 @@ package com.raj.token.controller;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -45,8 +44,7 @@ public class TokenController {
 		try {
 			resjson = new JSONObject();
 			json = new JSONObject(formData);
-			JSONArray reqJson = (JSONArray) json.get("requestObj");
-			UserDto dto = gson.fromJson(reqJson.getJSONObject(0).toString(),UserDto.class);
+			UserDto dto = gson.fromJson(json.get("requestObj").toString(),UserDto.class);
 			
 			String userName = "";
 			if(null != dto.getUserName()){
