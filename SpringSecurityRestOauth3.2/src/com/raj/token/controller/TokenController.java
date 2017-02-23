@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -26,7 +25,6 @@ import com.raj.models.UserDto;
 public class TokenController {
 
 	@RequestMapping(value="/getAuthenticationToken", method=RequestMethod.POST, consumes = "application/json", produces = "application/json")
-	@ResponseBody
 	public ResponseEntity<String> createAuthenticationToken(@RequestBody String formData, @RequestHeader HttpHeaders head, HttpServletRequest request) {
 		ResponseEntity<String> responseEntity = null;
 		HttpHeaders headers = new HttpHeaders();
